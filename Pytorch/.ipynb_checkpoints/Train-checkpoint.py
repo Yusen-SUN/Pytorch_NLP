@@ -138,7 +138,7 @@ def evaluate(input_tensors, output_tensors, model, criterion):
 
 
 def train(input_train_tensors, output_train_tensors, input_val_tensors, output_val_tensors,
-          model, epoches=20, batch_size=50, print_every=1, plot_every=1, learning_rate=0.001):
+          model, epoches=20, batch_size=50, print_every=1, plot_every=1, learning_rate=0.001, patience = 3, decay_rate=0.5, early_stop=10):
     
     # input_val, input_val_lengths, output_val,
               
@@ -148,14 +148,14 @@ def train(input_train_tensors, output_train_tensors, input_val_tensors, output_v
     plot_train_acc = []
     plot_val_acc = []
 
-    optimizer = optim.Adam(model.parameters(),lr=learning_rate)
-
+    optimizer = optim.Adam(model.parameters(),lr=learning_rate, weight_decay = 1e-3)
     criterion = nn.NLLLoss()
     
-    train_size = len(input_train_tensors)
-    
+    train_size = len(input_train_tensors) 
     best_val_acc = 0
-    
+    patience_count = 0
+    early_stop_count = 0
+   
     for iter in range(1, epoches + 1):
         print('iter', iter, '/', epoches )
             
@@ -164,10 +164,9 @@ def train(input_train_tensors, output_train_tensors, input_val_tensors, output_v
         val_loss, val_acc = evaluate(input_val_tensors, output_val_tensors, model, criterion)
 
         if iter % print_every == 0:
-            print()
-            print((timeSince(start, iter / epoches),iter, iter / epoches * 100,
-                   ' train loss:', train_loss, ' val loss:', val_loss,
-                   ' train acc:', train_acc, ' val loss:', val_acc))
+            print('\r' + timeSince(start, iter / epoches) + 
+                  ' train loss: %5.3f.  val loss: %5.3f.  train acc: %5.3f.  val acc: %5.3f'
+                  % (train_loss, val_loss, train_acc, val_acc))
             
         if iter % plot_every == 0:
             plot_train_loss.append(train_loss)
@@ -175,14 +174,43 @@ def train(input_train_tensors, output_train_tensors, input_val_tensors, output_v
             plot_train_acc.append(train_acc)
             plot_val_acc.append(val_acc)
             
+        # save best model
         if val_acc>best_val_acc:
-            print('val acc increase from ' + str(best_val_acc) + ' to ' + str(val_acc))
+            print('val acc increase from %5.3f to %5.3f'% (best_val_acc, val_acc))
             print('save models')
-            torch.save(model, './saved_models/cnn_model' + str(val_acc) + '.pt')
-            torch.save(optimizer, './saved_models/cnn_optimizer' + str(val_acc) + '.pt')
+            torch.save(model, './saved_models/cnn_model.pt')
+            torch.save(optimizer, './saved_models/cnn_optimizer.pt')
             
             best_val_acc = val_acc
             
+        else:
+            patience_count+=1
+            early_stop_count +=1
+            
+        # adjust learning rate
+        if patience_count>=patience:
+            adjust_learning_rate(optimizer, decay_rate)
+            for param_group in optimizer.param_groups:
+                lr = param_group['lr']
+            print('learning rate deceases from ' + str(lr) + ' to ' + str(lr*decay_rate))
+            
+            patience_count=0
+        
+        # early stop
+        if early_stop_count>-= early_stop:
+            break
+            
+        
+            
+        print()
+    
+    the_model = torch.load('./saved_models/cnn_model.pt')
+    the_optimizer = torch.load('./saved_models/cnn_optimizer.pt')
+    
+    torch.save(the_model, './saved_models/cnn_model' + str(best_val_acc) + '.pt')
+    torch.save(the_optimizer, './saved_models/cnn_optimizer' + str(best_val_acc) + '.pt')
+    
+        
     showPlot(plot_train_loss, plot_val_loss, 'loss')
     showPlot(plot_train_acc, plot_val_acc, 'accuracy')
     
@@ -204,15 +232,20 @@ def showPlot(train, val, name):
     plt.figure()
     fig, ax = plt.subplots()
     # this locator puts ticks at regular intervals
-    loc = ticker.MultipleLocator(base=0.2)
-    ax.yaxis.set_major_locator(loc)
+    #loc = ticker.MultipleLocator(base=0.2)
+    #ax.yaxis.set_major_locator(loc)
     plt.plot(train, label='train')
     plt.plot(val, label='val')
     plt.legend()
-    plt.ylabel("Loss")
+    plt.ylabel(name)
     plt.xlabel("Epoch")
-    plt.title(name)
+    #plt.title(name)
 
+def adjust_learning_rate(optimizer, ratio):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = param_group['lr'] *  ratio
+        
+        
     
 
 
