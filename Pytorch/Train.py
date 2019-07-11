@@ -234,7 +234,7 @@ def showPlot(train, val, name):
     fig, ax = plt.subplots()
     # this locator puts ticks at regular intervals
     #loc = ticker.MultipleLocator(base=0.2)
-    #ax.yaxis.set_major_locator(loc)
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     plt.plot(train, label='train')
     plt.plot(val, label='val')
     plt.legend()
