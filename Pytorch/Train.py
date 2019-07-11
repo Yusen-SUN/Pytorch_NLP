@@ -176,8 +176,7 @@ def train(input_train_tensors, output_train_tensors, input_val_tensors, output_v
             
         # save best model
         if val_acc>best_val_acc:
-            print('val acc increase from %5.3f to %5.3f'% (best_val_acc, val_acc))
-            print('save models')
+            print('val acc increase from %5.3f to %5.3f, save models'% (best_val_acc, val_acc))
             torch.save(model, './saved_models/cnn_model.pt')
             torch.save(optimizer, './saved_models/cnn_optimizer.pt')
             
@@ -197,7 +196,9 @@ def train(input_train_tensors, output_train_tensors, input_val_tensors, output_v
             patience_count=0
         
         # early stop
-        if early_stop_count>-= early_stop:
+        if early_stop_count>= early_stop:
+            print()
+            print('Early Etop')
             break
             
         
