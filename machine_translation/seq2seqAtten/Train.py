@@ -24,11 +24,11 @@ from DecoderRNN import DecoderRNN
 from Pretrained_embedding import pre_embedding
 
 
-device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
-print(device)
+#device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
+#print(device)
 
 
-def trainBatch(input_tensors, input_lengths, target_tensors, embedding, 
+def trainBatch(input_tensors, input_lengths, target_tensors, 
                encoder, decoder, mode, criterion=None,
                encoder_optimizer=None, decoder_optimizer=None ):
     
@@ -56,22 +56,19 @@ def trainBatch(input_tensors, input_lengths, target_tensors, embedding,
     
     input_tensors = input_tensors.t()
 
-    target_length, batch_size= input_tensors.size()
-
     # encoder_outputs: seq, batch, hidden
-    encoder_outputs, h, c = encoder.forward(input_tensors, input_lengths, embedding)
+    encoder_outputs, h, c = encoder.forward(input_tensors, input_lengths)
     
     # decoder_outputs: batch, seq, vocab
     # output_seq: batch, seq
     # atten: batch, seq, seq
-    decoder_outputs, output_seq, atten = decoder.forward(embedding, h, c, encoder_outputs)
+    decoder_outputs, output_seq, atten = decoder.forward(h, c, encoder_outputs)
     
     output_len = decoder_outputs.size()[1]
         
-    for i in range(batch_size):
+    for i in range(len(target_tensors)):
         
         loss += criterion(decoder_outputs[i], target_tensors[i,:output_len])
-        #print(loss.item())
         
     if mode=='train':
         loss.backward()
@@ -86,7 +83,7 @@ def trainBatch(input_tensors, input_lengths, target_tensors, embedding,
     
     
     
-def trainEpoch(input_train_tensors, input_train_lengths_tensors, output_train_tensors, embedding, 
+def trainEpoch(input_train_tensors, input_train_lengths_tensors, output_train_tensors, 
                encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, 
                epoches, batch_size):
     
@@ -115,7 +112,7 @@ def trainEpoch(input_train_tensors, input_train_lengths_tensors, output_train_te
         output_train_tensor = output_train_tensor[indices,:]
 
 
-        loss = trainBatch(input_train_tensor, input_train_length_tensor, output_train_tensor, embedding,
+        loss = trainBatch(input_train_tensor, input_train_length_tensor, output_train_tensor,
                           encoder, decoder, 'train', criterion, encoder_optimizer, decoder_optimizer)
 
         print('\r' + str(i) + '/' + str(train_size)+', loss:' + str(loss/len(batch)), end='')
@@ -124,7 +121,7 @@ def trainEpoch(input_train_tensors, input_train_lengths_tensors, output_train_te
         
     return total_loss/train_size
 
-def evaluate(input_tensors, input_lengths_tensors, output_tensors, embedding, 
+def evaluate(input_tensors, input_lengths_tensors, output_tensors, 
              encoder, decoder, criterion):
     
 
@@ -158,7 +155,7 @@ def evaluate(input_tensors, input_lengths_tensors, output_tensors, embedding,
             output_tensor = output_tensor[indices,:]
 
 
-            loss, output_seq, attn = trainBatch(input_tensor, input_length_tensor, output_tensor, embedding,
+            loss, output_seq, attn = trainBatch(input_tensor, input_length_tensor, output_tensor,
                                                 encoder, decoder, 'val', criterion)
 
             print('\r' + 'Evalidation: '+ str(i) + '/' + str(train_size)+', loss:' + str(loss/len(batch)), end='')
@@ -175,7 +172,7 @@ def evaluate(input_tensors, input_lengths_tensors, output_tensors, embedding,
 
 def train(input_train_tensors, input_train_lengths_tensors, output_train_tensors, 
           input_val_tensors, input_val_lengths_tensors, output_val_tensors, 
-          embedding, encoder, decoder, 
+          encoder, decoder, 
           epoches=20, batch_size=64, print_every=1, plot_every=1, learning_rate=0.001,
           patience = 3, decay_rate=0.5, early_stop=10):
     
@@ -200,11 +197,11 @@ def train(input_train_tensors, input_train_lengths_tensors, output_train_tensors
     for iter in range(1, epoches + 1):
         print('iter', iter)
             
-        train_loss = trainEpoch(input_train_tensors, input_train_lengths_tensors, output_train_tensors, embedding, 
+        train_loss = trainEpoch(input_train_tensors, input_train_lengths_tensors, output_train_tensors, 
                           encoder, decoder, encoder_optimizer, decoder_optimizer, 
                           criterion, epoches, batch_size)
 
-        val_loss, output_seq, attn = evaluate(input_val_tensors, input_val_lengths_tensors, output_val_tensors, embedding, 
+        val_loss, output_seq, attn = evaluate(input_val_tensors, input_val_lengths_tensors, output_val_tensors, 
                                               encoder, decoder, criterion)
 
         if iter % print_every == 0:

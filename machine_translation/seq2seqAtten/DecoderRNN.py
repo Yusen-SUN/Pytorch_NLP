@@ -5,62 +5,61 @@ import torch.nn.functional as F
 
 class DecoderRNN(nn.Module):
        
-    def __init__(self, attn_model, output_vocab_size, embedding_dim, hidden_dim, num_layer, dropout, pretrained_embedding=False):
+    def __init__(self, attn_model, output_vocab_size, embedding_dim, hidden_dim, num_layer, dropout, embedding=None):
         super(DecoderRNN, self).__init__()
         
-        self.hidden_dim = hidden_dim
+        self.hidden_dim = 2*hidden_dim
         
         self.embedding_dim = embedding_dim
         
         self.num_layer = num_layer
         
         self.output_vocab_size = output_vocab_size
+                
+        self.embedding = embedding
         
-        self.pretrained_embedding = pretrained_embedding
-        
-        if not pretrained_embedding:
-        
-            self.embedding = nn.Embedding(output_vocab_size, embedding_dim)   
+        if type(self.embedding)==type(None):
+                
+            self.embedding = nn.Embedding(num_embeddings=output_vocab_size, embedding_dim=embedding_dim)
         
         self.embedding_dropout = nn.Dropout(dropout) 
         
-        self.lstm = nn.LSTM(input_size=(hidden_dim+embedding_dim), hidden_size=hidden_dim, num_layers=num_layer, dropout=dropout)
+        self.lstm = nn.LSTM(input_size=(self.hidden_dim+embedding_dim), hidden_size=self.hidden_dim, num_layers=num_layer, dropout=dropout)
                 
-        self.out = nn.Linear(hidden_dim, output_vocab_size)
+        self.out = nn.Linear(self.hidden_dim, output_vocab_size)
         
         self.attn = attn_model
         
         
-    def forward_word(self, input_word, embedding, h, c, encoder_outputs):
+    def forward_word(self, input_word, h, c, encoder_outputs):
         
         # input_word (1, batch)
-        # h (num_layers, batch, hidden_size)
-        # c (num_layers, batch, hidden_size)    
+        # h (1, batch, hidden_size)
+        # c (1, batch, hidden_size)    
         # encoder_outputs (seq, batch, hidden_dim)
         
-                
         # output (batch, output_vocab_size)
         # attn_weights (batch, 1, seq)
         
         input_word = input_word.type(torch.long)
         
-        if not self.pretrained_embedding:
+        if type(self.embedding)==type(None):
         
             # embedded (1, batch, embedd_dim)
             embedded = self.embedding(input_word)
             
         else:
             # embedded (1, batch, embedd_dim)
-            embedded = embedding[input_word[0,:]].unsqueeze(0)#.type(torch.float32).to(device)
+            embedded = self.embedding[input_word[0,:]].unsqueeze(0)#.type(torch.float32).to(device)
         
         # embedded (1, batch, embedd_dim)
         embedded = self.embedding_dropout(embedded)
         
-        # h_atten (1, batch, hidden_dim)
-        h_atten = h[-1,:,:].unsqueeze(0)
+#         # h_atten (1, batch, hidden_dim)
+#         h_atten = h[-1,:,:].unsqueeze(0)
         
          # attn_weights  (batch, 1, seq)
-        attn_weights = self.attn.forward(h_atten, encoder_outputs)
+        attn_weights = self.attn.forward(h, encoder_outputs)
         
         # encoder_outputs (batch, seq, hidden_dim)
         encoder_outputs = torch.transpose(encoder_outputs, 0, 1)
@@ -95,7 +94,7 @@ class DecoderRNN(nn.Module):
         
         return output, h, c, attn_weights.squeeze(1)
     
-    def forward(self, embedding, h, c, encoder_outputs):
+    def forward(self, h, c, encoder_outputs):
         
         target_length, batch_size, _ = encoder_outputs.size()
         
@@ -106,12 +105,17 @@ class DecoderRNN(nn.Module):
         output_seq = []
         
         output_atten = []
+        
+        if self.num_layer != 1:
+            h = torch.cat([h]*self.num_layer)
+            c = torch.cat([c]*self.num_layer)
+
 
         for i in range(0, target_length):
 
             decoder_input = decoder_input.unsqueeze(0)
 
-            decoder_output, h, c, attn_weights = self.forward_word(decoder_input, embedding, h, c, encoder_outputs)
+            decoder_output, h, c, attn_weights = self.forward_word(decoder_input, h, c, encoder_outputs)
 
             topv, topi = decoder_output.topk(1)
 

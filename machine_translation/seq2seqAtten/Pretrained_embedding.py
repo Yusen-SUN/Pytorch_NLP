@@ -17,7 +17,7 @@ class pre_embedding:
         
         if self.name == 'glove':
             
-            with open('./data/style_transfer/glove_vectors.txt', 'r') as v:
+            with open('../../dataset/style_transfer/glove_vectors.txt', 'r') as v:
                 whole = v.read()
             word_vector = whole.split('\n')
             word = []

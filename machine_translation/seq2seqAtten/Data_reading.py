@@ -12,7 +12,7 @@ import os
 
 def read_sentences(file):
     
-    with open('./data/style_transfer/' + file + '.txt', 'r') as f:
+    with open('../../dataset/style_transfer/' + file + '.txt', 'r') as f:
         text = f.read()
     text = text.split('\n')[:-1]
     

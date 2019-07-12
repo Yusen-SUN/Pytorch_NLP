@@ -11,17 +11,17 @@ class Attn(nn.Module):
     def __init__(self, method, hidden_dim):
         super(Attn, self).__init__()
         self.method = method
-        self.hidden_dim = hidden_dim
+        self.hidden_dim = 2*hidden_dim
         
         if self.method not in ['dot', 'general', 'concat']:
             raise ValueError(self.method, "is not an appropriate attention method.")
             
         if self.method == 'general':
-            self.attn = nn.Linear(hidden_dim, hidden_dim)
+            self.attn = nn.Linear(self.hidden_dim, self.hidden_dim)
             
         elif self.method == 'concat':
-            self.attn = nn,Linear(hidden_dim*2, hidden_dim)
-            self.v = torch.nn.Parameter(torch.FloatTensor(hidden_dim))
+            self.attn = nn,Linear(self.hidden_dim*2, self.hidden_dim)
+            self.v = torch.nn.Parameter(torch.FloatTensor(self.hidden_dim))
      
         
     def dot_score(self, h, encoder_outputs):
