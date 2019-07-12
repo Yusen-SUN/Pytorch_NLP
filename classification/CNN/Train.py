@@ -200,9 +200,7 @@ def train(input_train_tensors, output_train_tensors, input_val_tensors, output_v
             print()
             print('Early Etop')
             break
-            
-        
-            
+
         print()
     
     the_model = torch.load('./saved_models/cnn_model.pt')
@@ -240,7 +238,6 @@ def showPlot(train, val, name):
     plt.legend()
     plt.ylabel(name)
     plt.xlabel("Epoch")
-    #plt.title(name)
 
 def adjust_learning_rate(optimizer, ratio):
     for param_group in optimizer.param_groups:
