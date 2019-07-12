@@ -4,11 +4,18 @@ import torch.nn.functional as F
 
 
 class textCNN(nn.Module):
-    def __init__(self, vocab_size, seq_length, embedding_size, num_labels, filter_sizes=[3, 4, 5], drop_out_rate=0.5, num_feature_maps=100):
+    def __init__(self, vocab_size, seq_length, embedding_size, num_labels, embedding=None, filter_sizes=[3, 4, 5], drop_out_rate=0.5, num_feature_maps=100):
         super(textCNN, self).__init__()
-
-        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedding_size)
+        
+        self.embedding_dim = embedding_size
+        
+        if type(embedding)==type(None):
+            self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedding_size)
+        else:
+            self.embedding = embedding
+ 
         self.dropout = nn.Dropout(drop_out_rate)
+    
         self.conv = nn.ModuleList([ 
             nn.Sequential(
                 # input size: batch, in_channels, seq_length, embedding_size
@@ -20,14 +27,23 @@ class textCNN(nn.Module):
                 nn.MaxPool2d(kernel_size=(seq_length-i+1, 1))
                 ) 
             for i in filter_sizes])
+        
         self.out = nn.Linear(num_feature_maps*len(filter_sizes), num_labels)
 
     def forward(self, input_seq):
         
         # input_seq: batch, seq_length
         input_seq = input_seq.type(torch.long)
-        # embedded: batch, seq_length, embedding_size
-        embedded = self.embedding(input_seq)
+        
+        if type(self.embedding)==type(input_seq):
+            embedded = input_seq.unsqueeze(-1).repeat(1, 1, self.embedding_dim).type(torch.float32)
+            for i in range(len(input_seq)):
+                embedded[i,:,:] = self.embedding[input_seq[i]]            
+        else:
+            # embedded: batch, seq_length, embedding_size
+            embedded = self.embedding(input_seq)
+            
+        
         x = [conv(embedded.unsqueeze(1)).squeeze() for conv in self.conv]
         # x: batch, num_feature_maps & num_filters
         x = torch.cat(x, 1)
