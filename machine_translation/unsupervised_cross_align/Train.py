@@ -27,8 +27,10 @@ from Pretrained_embedding import pre_embedding
 #device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
 #print(device)
 
+STYLE_1 = 1
+STYLE_2 = 2
 
-def trainBatch(input_tensors, input_lengths, target_tensors, 
+def trainBatch(input_tensors, input_lengths, style, 
                encoder, decoder, mode, criterion=None,
                encoder_optimizer=None, decoder_optimizer=None ):
     
@@ -37,7 +39,9 @@ def trainBatch(input_tensors, input_lengths, target_tensors,
     # input_lengths (batch)
     # embedding (vocab, embedding_dim)
     
-    loss = 0
+    rec_loss = 0
+    adv1_loss = 0
+    adv2_loss = 0
     
     if mode=='train':
         encoder.train()
@@ -45,6 +49,9 @@ def trainBatch(input_tensors, input_lengths, target_tensors,
             
         encoder_optimizer.zero_grad()
         decoder_optimizer.zero_grad()
+        D1_optimizer.zero_grad()
+        D2_optimizer.zero_grad()
+        
         
     elif mode=='val':
         encoder.eval()
@@ -56,19 +63,25 @@ def trainBatch(input_tensors, input_lengths, target_tensors,
     
     input_tensors = input_tensors.t()
 
-    # encoder_outputs: seq, batch, hidden
-    encoder_outputs, h, c = encoder.forward(input_tensors, input_lengths)
+    # encoded_hidden: 1, batch, 2*hidden
+    encoded_h = encoder.forward(input_tensors, input_lengths)
     
     # decoder_outputs: batch, seq, vocab
     # output_seq: batch, seq
     # atten: batch, seq, seq
-    decoder_outputs, output_seq, atten = decoder.forward(h, c, encoder_outputs)
+    decoder_outputs, output_seq = decoder.forward(encoded_h, style)
+    decoder_outputs, output_seq = decoder.forward(encoded_h, style)
     
     output_len = decoder_outputs.size()[1]
         
     for i in range(len(target_tensors)):
         
-        loss += criterion(decoder_outputs[i], target_tensors[i,:output_len])
+        rec_loss += criterion(decoder_outputs[i], input_tensors[i,:output_len])
+        
+        
+    # train decoder
+    
+        
         
     if mode=='train':
         loss.backward()

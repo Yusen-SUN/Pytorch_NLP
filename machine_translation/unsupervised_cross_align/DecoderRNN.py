@@ -24,14 +24,14 @@ class DecoderRNN(nn.Module):
         
         self.embedding_dropout = nn.Dropout(dropout) 
         
-        self.lstm = nn.LSTM(input_size=(self.hidden_dim+embedding_dim), hidden_size=self.hidden_dim, num_layers=num_layer, dropout=dropout)
+        self.gru = nn.GRU(input_size=(self.hidden_dim+embedding_dim), hidden_size=self.hidden_dim, num_layers=num_layer, dropout=dropout)
                 
         self.out = nn.Linear(self.hidden_dim, output_vocab_size)
         
         self.attn = attn_model
         
         
-    def forward_word(self, input_word, h, c, encoder_outputs):
+    def forward_word(self, input_word, h):
         
         # input_word (1, batch)
         # h (2, batch, hidden_size)
@@ -55,31 +55,35 @@ class DecoderRNN(nn.Module):
         # embedded (1, batch, embedd_dim)
         embedded = self.embedding_dropout(embedded)
         
+        
+        output, h = self.gru(embedded, h[-1])   
+        
+        
         # h_atten (1, batch, hidden_dim)
-        h_atten = h[-1,:,:].unsqueeze(0)
+#         h_atten = h[-1,:,:].unsqueeze(0)
         
-         # attn_weights  (batch, 1, seq)
-        attn_weights = self.attn.forward(h_atten, encoder_outputs)
+#          # attn_weights  (batch, 1, seq)
+#         attn_weights = self.attn.forward(h_atten, encoder_outputs)
         
-        # encoder_outputs (batch, seq, hidden_dim)
-        encoder_outputs = torch.transpose(encoder_outputs, 0, 1)
+#         # encoder_outputs (batch, seq, hidden_dim)
+#         encoder_outputs = torch.transpose(encoder_outputs, 0, 1)
 
-        # conect (1, b, hidden)
-        context = torch.bmm(attn_weights, encoder_outputs).squeeze(1).unsqueeze(0)
+#         # conect (1, b, hidden)
+#         context = torch.bmm(attn_weights, encoder_outputs).squeeze(1).unsqueeze(0)
         
-        # concat_input (batch, hidden_dim+embedding_dim)
-        concat_input = torch.cat((embedded, context), dim=-1)
+#         # concat_input (batch, hidden_dim+embedding_dim)
+#         concat_input = torch.cat((embedded, context), dim=-1)
         
-        # concat_output (batch, hidden_dim)
-        #concat_output = torch.relu(self.concat(concat_input))
+#         # concat_output (batch, hidden_dim)
+#         #concat_output = torch.relu(self.concat(concat_input))
           
-        # output (1, batch, hidden_dim)
-        # h (2, batch, hidden_dim)
-        # c (2, batch, hidden_dim)
-        output, (h, c) = self.lstm(concat_input, (h, c))    
+#         # output (1, batch, hidden_dim)
+#         # h (2, batch, hidden_dim)
+#         # c (2, batch, hidden_dim)
+#         output, (h, c) = self.gru(concat_input, (h, c))    
         
-        # output (batch, hidden_dim)
-        output = output.squeeze(0)
+#         # output (batch, hidden_dim)
+#         output = output.squeeze(0)
         
         # output (batch, output_vocab_size)
         output = self.out(output)
@@ -87,18 +91,20 @@ class DecoderRNN(nn.Module):
         # output (batch, output_vocab_size)
         output = F.log_softmax(output, dim=-1)
         
-        # output (batch, output_vocab_size)
-        # h (2, batch, hidden_dim)
-        # c (2, batch, hidden_dim)
-        # attn_weights  (batch, atten_seq)
+        return output, h
         
-        return output, h, c, attn_weights.squeeze(1)
+#         # output (batch, output_vocab_size)
+#         # h (2, batch, hidden_dim)
+#         # c (2, batch, hidden_dim)
+#         # attn_weights  (batch, atten_seq)
+        
+#         return output, h, c, attn_weights.squeeze(1)
     
-    def forward(self, h, c, encoder_outputs):
+    def forward(self, h, style):
         
         target_length, batch_size, _ = encoder_outputs.size()
         
-        decoder_input = torch.ones(batch_size)
+        decoder_input = torch.ones(batch_size)*style
         
         outputs = []
         
@@ -108,15 +114,13 @@ class DecoderRNN(nn.Module):
         
         if self.num_layer != 1:
             h = torch.cat([h]*self.num_layer)
-            c = torch.cat([c]*self.num_layer)
-
-
+            
         for i in range(0, target_length):
 
             decoder_input = decoder_input.unsqueeze(0)
 
-            decoder_output, h, c, attn_weights = self.forward_word(decoder_input, h, c, encoder_outputs)
-
+            decoder_output, h = self.forward_word(decoder_input, h)
+           
             topv, topi = decoder_output.topk(1)
 
             decoder_input = topi.detach().squeeze()
@@ -130,9 +134,8 @@ class DecoderRNN(nn.Module):
         
         output = torch.cat(outputs, dim=1)
         seq = torch.cat(output_seq, dim=1)
-        attn = torch.cat(output_atten, dim=1)
         
-        return output, seq, attn
+        return output, seq, h
     
     
     
