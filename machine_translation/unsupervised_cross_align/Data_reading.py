@@ -12,67 +12,109 @@ import os
 
 def read_sentences(file):
     
-    with open('../../dataset/style_transfer/' + file + '.txt', 'r') as f:
+    with open('../../dataset/GYAFC_Corpus/' + file + '.txt', 'r') as f:
         text = f.read()
     text = text.split('\n')[:-1]
-    
+    text = [i for i in text if i]
     return text
 
+def fill_padding(seq_list, max_len, pad_id):
+    seq_array = []
+    for i in seq_list:
+        if len(i) < max_len:
+            seq_array.append(i + [pad_id]*(max_len-len(i) ))
+            
+        elif len(i) >= max_len:
+            seq_array.append(i[:max_len])
+                             
+    seq_array = np.asarray(seq_array)
+                             
+    return seq_array
 
-def input_data(Glove):
+
+def input_data(sp_user, MAX):
+    
+    
     formal_train = read_sentences('formal-train')
     informal_train = read_sentences('informal-train')
     formal_val = read_sentences('formal-val')
     informal_val = read_sentences('formal-val')
-    
-    MAX_LEN = 30
-    
+        
     src_train = []
     src_train_lens = []
     tgt_train= []
+    tgt_train_lens= []
 
 
     for i in range(len(formal_train)):
 
-        seq, length = Glove.sentence2seq(informal_train[i], MAX_LEN, i)
-        src_train.append(seq)
-        src_train_lens.append(length)
-
-        seq, length = Glove.sentence2seq(formal_train[i], MAX_LEN, i)
-        tgt_train.append(seq)
-
-    src_train = np.asarray(src_train)
+        seq_1 = sp_user.encode_as_ids(formal_train[i])
+        seq_2 = sp_user.encode_as_ids(informal_train[i])
+        
+        if len(seq_1) <=5 or len(seq_2) <=5:
+            continue
+        src_train.append(seq_1)
+        
+        if len(seq_1)<50:
+            src_train_lens.append(len(seq_1))
+        else:
+            src_train_lens.append(50)
+            
+        tgt_train.append(seq_2)
+        
+        if len(seq_2)<50:
+            tgt_train_lens.append(len(seq_2))
+        else:
+             tgt_train_lens.append(50)
+                                   
+    src_train = fill_padding(src_train, MAX, sp_user.pad_id())
     src_train_lens = np.asarray(src_train_lens)
-    tgt_train = np.asarray(tgt_train)
+    tgt_train = fill_padding(tgt_train, MAX, sp_user.pad_id())
+    tgt_train_lens = np.asarray(tgt_train_lens)
     
     print('src_train', src_train.shape)
     print('src_train_lens', src_train_lens.shape)
-    print('tgt_train', tgt_train.shape)    
+    print('tgt_train', tgt_train.shape)   
+    print('tgt_train_lens', tgt_train_lens.shape)
     
     src_val = []
     src_val_lens = []
-    tgt_val = []    
+    tgt_val= []
+    tgt_val_lens= []
 
-    
-    
+
     for i in range(len(formal_val)):
 
-        seq, length = Glove.sentence2seq(informal_val[i], MAX_LEN, i)
-        src_val.append(seq)
-        src_val_lens.append(length)
 
-        seq, length = Glove.sentence2seq(formal_val[i], MAX_LEN, i)
-        tgt_val.append(seq)
+        seq_1 = sp_user.encode_as_ids(formal_val[i])
+        seq_2 = sp_user.encode_as_ids(informal_val[i])
+        
+        if len(seq_1) <=5 or len(seq_2) <=5:
+            continue
+            
+        src_val.append(seq_1)
+        if len(seq_1)<50:
+            src_val_lens.append(len(seq_1))
+        else:
+            src_val_lens.append(50)                       
+                                   
+        tgt_val.append(seq_2)
+        if len(seq_2)<50:
+            tgt_val_lens.append(len(seq_2))
+        else:
+            tgt_val_lens.append(50)                       
 
-    src_val = np.asarray(src_val)
+    src_val = fill_padding(src_val, MAX, sp_user.pad_id())
     src_val_lens = np.asarray(src_val_lens)
-    tgt_val = np.asarray(tgt_val) 
+    tgt_val = fill_padding(tgt_val, MAX, sp_user.pad_id())
+    tgt_val_lens = np.asarray(tgt_val_lens)
     
     print('src_val', src_val.shape)
     print('src_val_lens', src_val_lens.shape)
     print('tgt_val', tgt_val.shape)   
+    print('tgt_val_lens', tgt_val_lens.shape)
     
-    return src_train, src_train_lens, tgt_train, src_val, src_val_lens, tgt_val
+    return src_train, src_train_lens, tgt_train, tgt_train_lens, src_val, src_val_lens, tgt_val, tgt_val_lens
 
     
     

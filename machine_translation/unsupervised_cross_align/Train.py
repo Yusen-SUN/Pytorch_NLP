@@ -19,29 +19,24 @@ from torch import optim
 import torch.nn.functional as F
 
 from EncoderRNN import EncoderRNN
-from Attention import Attn
 from DecoderRNN import DecoderRNN
 from Pretrained_embedding import pre_embedding
 
 
-#device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
-#print(device)
-
-STYLE_1 = 1
-STYLE_2 = 2
-
-def trainBatch(input_tensors, input_lengths, style, 
-               encoder, decoder, mode, criterion=None,
+def trainBatch(tensor_1, input_length_1, 
+               tensor_2, input_length_2, 
+               style_1, style_2, 
+               encoder, decoder, mode,
                encoder_optimizer=None, decoder_optimizer=None ):
     
     # input_tensors (batch, seq)
     # target_tensors (batch, seq)
     # input_lengths (batch)
-    # embedding (vocab, embedding_dim)
     
+    total_loss = 0
     rec_loss = 0
-    adv1_loss = 0
-    adv2_loss = 0
+    output_seq = []
+    log_criterion = nn.NLLLoss()
     
     if mode=='train':
         encoder.train()
@@ -49,63 +44,82 @@ def trainBatch(input_tensors, input_lengths, style,
             
         encoder_optimizer.zero_grad()
         decoder_optimizer.zero_grad()
-        D1_optimizer.zero_grad()
-        D2_optimizer.zero_grad()
-        
-        
+    
     elif mode=='val':
         encoder.eval()
         decoder.eval()
-    
-    else:
-        print('wrong mode')
         
-    
-    input_tensors = input_tensors.t()
+    else:
+        raise ValueError('wrong mode')
+        
 
-    # encoded_hidden: 1, batch, 2*hidden
-    encoded_h = encoder.forward(input_tensors, input_lengths)
-    
+    # outputs (seq, batch, hidden_size)
+    # h: (num_layers, batch, hidden_size)
     # decoder_outputs: batch, seq, vocab
     # output_seq: batch, seq
-    # atten: batch, seq, seq
-    decoder_outputs, output_seq = decoder.forward(encoded_h, style)
-    decoder_outputs, output_seq = decoder.forward(encoded_h, style)
     
-    output_len = decoder_outputs.size()[1]
-        
-    for i in range(len(target_tensors)):
-        
-        rec_loss += criterion(decoder_outputs[i], input_tensors[i,:output_len])
-        
-        
-    # train decoder
+    input_lengths_1, indices = torch.sort(input_length_1, descending=True)
+    order = torch.LongTensor(range(len(input_length_1)))
+    order_1 = order[indices]
+    tensors_1 = tensor_1[indices,:]
+    tensors_2 = tensor_2[indices,:]
     
+    encoder_outputs_1, encoded_h = encoder.forward(tensors_1, input_lengths_1, style_1)
+    decoder_outputs_1, output_seq_1_1 = decoder.forward(encoded_h, encoder_outputs_1, style_1)
+    decoder_outputs_2, output_seq_1_2 = decoder.forward(encoded_h, encoder_outputs_1, style_2)
+
+    batch_size, output_len_1, _ = decoder_outputs_1.size()
+    batch_size, output_len_2, _ = decoder_outputs_2.size()
         
+    for i in range(batch_size):
         
+        rec_loss += log_criterion(decoder_outputs_1[i], tensors_1[i,:output_len_1])
+        rec_loss += log_criterion(decoder_outputs_2[i], tensors_2[i,:output_len_2])
+        
+    input_lengths_2, indices = torch.sort(input_length_2, descending=True)
+    order = torch.LongTensor(range(len(input_length_2)))
+    order_2 = order[indices]
+    tensors_1 = tensor_1[indices,:]
+    tensors_2 = tensor_2[indices,:]
+    
+    encoder_outputs_2, encoded_h = encoder.forward(tensors_2, input_lengths_2, style_2)
+    decoder_outputs_2, output_seq_2_2 = decoder.forward(encoded_h, encoder_outputs_2, style_2)
+    decoder_outputs_1, output_seq_2_1 = decoder.forward(encoded_h, encoder_outputs_2, style_1)
+    
+    batch_size, output_len_1, _ = decoder_outputs_1.size()
+    batch_size, output_len_2, _ = decoder_outputs_2.size()
+        
+    for i in range(batch_size):
+
+        rec_loss += log_criterion(decoder_outputs_1[i], tensors_1[i,:output_len_1])
+        rec_loss += log_criterion(decoder_outputs_2[i], tensors_2[i,:output_len_2])
+            
+            
     if mode=='train':
-        loss.backward()
+        rec_loss.backward()
 
         encoder_optimizer.step()
         decoder_optimizer.step()
         
-        return loss.item()
+        return rec_loss.item()
     
     else:
-        return loss.item(), output_seq.cpu().numpy(), atten.cpu().numpy()
+        output_seq = [tensor_1.cpu().numpy(), output_seq_1_1[order_1].cpu().numpy(), output_seq_1_2[order_1].cpu().numpy(), tensor_2.cpu().numpy(), output_seq_2_1[order_2].cpu().numpy(), output_seq_2_2[order_2].cpu().numpy()]
+        return rec_loss.item(), output_seq#, atten.cpu().numpy()
     
     
     
-def trainEpoch(input_train_tensors, input_train_lengths_tensors, output_train_tensors, 
-               encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, 
+def trainEpoch(tensor_1, input_length_1, 
+               tensor_2, input_length_2, 
+               style_1, style_2, 
+               encoder, decoder, encoder_optimizer, decoder_optimizer, 
                epoches, batch_size):
     
     # input_train_tensors: batch, seq
-    
-    train_size = len(input_train_tensors)
+    train_size = len(tensor_1)
     orders = np.arange(train_size)
     np.random.shuffle(orders)
-    total_loss = 0
+    total_loss = 0.0
 
     for i in range(0, train_size, batch_size):
         temp = i+batch_size
@@ -115,37 +129,35 @@ def trainEpoch(input_train_tensors, input_train_lengths_tensors, output_train_te
         else:
             batch = orders[i:i+batch_size]
 
-        input_train_tensor = input_train_tensors[batch]
-        input_train_length_tensor = input_train_lengths_tensors[batch]
-        output_train_tensor = output_train_tensors[batch]
+        tensors_1 = tensor_1[batch]
+        input_lengths_1 = input_length_1[batch]
+        tensors_2 = tensor_2[batch]
+        input_lengths_2 = input_length_2[batch]
 
-
-        input_train_length_tensor, indices = torch.sort(input_train_length_tensor, descending=True)
-        input_train_tensor = input_train_tensor[indices,:]
-        output_train_tensor = output_train_tensor[indices,:]
-
-
-        loss = trainBatch(input_train_tensor, input_train_length_tensor, output_train_tensor,
-                          encoder, decoder, 'train', criterion, encoder_optimizer, decoder_optimizer)
+        loss = trainBatch(tensors_1, input_lengths_1, tensors_2, input_lengths_2, style_1, style_2, 
+                          encoder, decoder, 'train', encoder_optimizer, decoder_optimizer)
+#        loss = trainBatch(tensors_2, input_lengths_2, tensors_1, input_lengths_1, style_2, style_1, 
+#                          encoder, decoder, 'train', encoder_optimizer, decoder_optimizer)
 
         print('\r' + str(i) + '/' + str(train_size)+', loss:' + str(loss/len(batch)), end='')
-        
         total_loss += loss
         
-        torch.cuda.empty_cache()
-        
+        #torch.cuda.empty_cache()
+    print()
     return total_loss/train_size
 
-def evaluate(input_tensors, input_lengths_tensors, output_tensors, 
-             encoder, decoder, criterion):
+def evaluate(tensor_1, input_length_1, 
+             tensor_2, input_length_2, 
+             style_1, style_2, 
+             encoder, decoder):
     
 
-    batch_size = 32
+    batch_size = 64
     total_loss = 0
-    train_size, _ = input_tensors.size()
+    train_size, _ = tensor_1.size()
     
     outputs = []
-    attns = []
+    #attns = []
         
     orders = np.arange(train_size)
     
@@ -160,35 +172,31 @@ def evaluate(input_tensors, input_lengths_tensors, output_tensors,
             else:
                 batch = orders[i:i+batch_size]
 
-            input_tensor = input_tensors[batch]
-            input_length_tensor = input_lengths_tensors[batch]
-            output_tensor = output_tensors[batch]
+            tensors_1 = tensor_1[batch]
+            input_lengths_1 = input_length_1[batch]
+            tensors_2 = tensor_2[batch]
+            input_lengths_2 = input_length_2[batch]
 
 
-            input_length_tensor, indices = torch.sort(input_length_tensor, descending=True)
-            input_tensor = input_tensor[indices,:]
-            output_tensor = output_tensor[indices,:]
-
-
-            loss, output_seq, attn = trainBatch(input_tensor, input_length_tensor, output_tensor,
-                                                encoder, decoder, 'val', criterion)
+            loss, output_seq = trainBatch(tensors_1, input_lengths_1, tensors_2, input_lengths_2, style_1, style_2, encoder, decoder, 'val')
 
             print('\r' + 'Evalidation: '+ str(i) + '/' + str(train_size)+', loss:' + str(loss/len(batch)), end='')
 
             total_loss += loss
 
             outputs.append(output_seq)
-            attns.append(attn)
+            #attns.append(attn)
         
-            
-    return total_loss/train_size, np.asarray(outputs), np.asarray(attns)
+    print()        
+    return total_loss/train_size, np.asarray(outputs)#, np.asarray(attns)
 
 
 
-def train(input_train_tensors, input_train_lengths_tensors, output_train_tensors, 
-          input_val_tensors, input_val_lengths_tensors, output_val_tensors, 
-          encoder, decoder, 
-          epoches=20, batch_size=64, print_every=1, plot_every=1, learning_rate=0.001,
+def train(tensors_1, input_lengths_1, tensors_2, input_lengths_2, 
+          tensors_1_val, input_lengths_1_val, tensors_2_val, input_lengths_2_val, 
+          style_1, style_2, 
+          encoder, decoder, encoder_optimizer, decoder_optimizer, 
+          epoches=20, batch_size=64, print_every=1, plot_every=1,
           patience = 3, decay_rate=0.5, early_stop=10):
     
     # input_val, input_val_lengths, output_val,
@@ -200,24 +208,17 @@ def train(input_train_tensors, input_train_lengths_tensors, output_train_tensors
     patience_count = 0
     early_stop_count = 0
 
-    encoder_optimizer = optim.Adam(encoder.parameters(),lr=learning_rate)
-    decoder_optimizer = optim.Adam(decoder.parameters(),lr=learning_rate)
-
-    criterion = nn.NLLLoss()
-    
-    train_size = len(input_train_tensors)
-    
+        
     best_val_loss = 100
     
     for iter in range(1, epoches + 1):
         print('iter', iter)
             
-        train_loss = trainEpoch(input_train_tensors, input_train_lengths_tensors, output_train_tensors, 
-                          encoder, decoder, encoder_optimizer, decoder_optimizer, 
-                          criterion, epoches, batch_size)
+        train_loss = trainEpoch(tensors_1, input_lengths_1, tensors_2, input_lengths_2, style_1, style_2, 
+                                encoder, decoder, encoder_optimizer, decoder_optimizer, 
+                                epoches, batch_size)
 
-        val_loss, output_seq, attn = evaluate(input_val_tensors, input_val_lengths_tensors, output_val_tensors, 
-                                              encoder, decoder, criterion)
+        val_loss, output_seq = evaluate(tensors_1_val, input_lengths_1_val, tensors_2_val, input_lengths_2_val, style_1, style_2, encoder, decoder)
 
         if iter % print_every == 0:
             print()
@@ -237,7 +238,7 @@ def train(input_train_tensors, input_train_lengths_tensors, output_train_tensors
             torch.save(decoder, './saved_models/decoder.pt')
             torch.save(encoder_optimizer, './saved_models/encoder_optimizer.pt')
             torch.save(decoder_optimizer, './saved_models/decoder_optimizer.pt')
-            torch.save(decoder.attn, './saved_models/attn.pt')
+            #torch.save(decoder.attn, './saved_models/attn.pt')
 
             best_val_loss = val_loss
 
@@ -255,17 +256,20 @@ def train(input_train_tensors, input_train_lengths_tensors, output_train_tensors
     the_decoder = torch.load('./saved_models/decoder.pt')
     the_encoder_optimizer = torch.load('./saved_models/encoder_optimizer.pt')
     the_decoder_optimizer = torch.load('./saved_models/decoder_optimizer.pt')
-    the_attn = torch.load('./saved_models/attn.pt')
+    #the_attn = torch.load('./saved_models/attn.pt')
     
-    torch.save('./saved_models/encoder' + str(best_val_loss) + '.pt')
-    torch.save('./saved_models/decoder' + str(best_val_loss) + '.pt')
-    torch.save('./saved_models/encoder_optimizer' + str(best_val_loss) + '.pt')
-    torch.save('./saved_models/decoder_optimizer' + str(best_val_loss) + '.pt')
-    torch.save('./saved_models/attn' + str(best_val_loss) + '.pt')
+    
+    #print('./saved_models/encoder' + str(best_val_loss) + '.pt')
+    torch.save(the_encoder, './saved_models/encoder' + str(best_val_loss) + '.pt')
+    torch.save(the_decoder, './saved_models/decoder' + str(best_val_loss) + '.pt')
+    torch.save(the_encoder_optimizer, './saved_models/encoder_optimizer' + str(best_val_loss) + '.pt')
+    torch.save(the_decoder_optimizer, './saved_models/decoder_optimizer' + str(best_val_loss) + '.pt')
+    #torch.save(the_attn, './saved_models/attn' + str(best_val_loss) + '.pt')
     
 
-    showPlot(plot_train_loss, plot_val_loss)
+    showPlot(plot_train_loss, plot_val_loss, 'loss')
     
+    return output_seq
     
     
 def asMinutes(s):
