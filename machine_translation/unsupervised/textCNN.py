@@ -4,15 +4,13 @@ import torch.nn.functional as F
 
 
 class textCNN(nn.Module):
-    def __init__(self, vocab_size, seq_length, embedding_size, num_labels, embedding=None, filter_sizes=[3, 4, 5], drop_out_rate=0.5, num_feature_maps=100):
+    def __init__(self, seq_length, embedding_size, num_labels, embedding=None, filter_sizes=[3, 4, 5], drop_out_rate=0.5, num_feature_maps=500):
+        
         super(textCNN, self).__init__()
         
         self.embedding_dim = embedding_size
 
-        if type(embedding)==type(None):
-            self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedding_size)
-        else:
-            self.embedding = embedding
+        self.embedding = embedding
  
         self.dropout = nn.Dropout(drop_out_rate)
     
@@ -33,25 +31,26 @@ class textCNN(nn.Module):
     def processed_input(self, input_seq):
                 
         # inputs is seq of index
-        if len(input_seq.size())==2:
-            input_seq = input_seq.type(torch.long)
-            if type(self.embedding)==type(None):
-                embedded = self.embedding(input_seq)
-            else:
-                embedded = input_seq.unsqueeze(-1).repeat(1, 1, self.embedding_dim).type(torch.float32)
-                for i in range(len(input_seq)):
-                    embedded[i,:,:] = self.embedding[input_seq[i]]
+#         if len(input_seq.size())==2:
+        # input: batch, seq
+        input_seq = input_seq.type(torch.long)
+#             if type(self.embedding)==type(None):
+        embedded = self.embedding(input_seq)
+#             else:
+#                 embedded = input_seq.unsqueeze(-1).repeat(1, 1, self.embedding_dim).type(torch.float32)
+#                 for i in range(len(input_seq)):
+#                     embedded[i,:,:] = self.embedding[input_seq[i]]
                     
-        # input is seq of word embedding         
-        elif len(input_seq.size())==3:
-            embedded = input_seq
+#         # input is seq of word embedding         
+#         elif len(input_seq.size())==3:
+#             embedded = input_seq
             
-        else:
-            raise ValueError('Incorrect input dim for encoder!')
+#         else:
+#             raise ValueError('Incorrect input dim for encoder!')
         
         # embedded: batch, seq_length, embedding_size
-        embedded = torch.transpose(embedded, 0, 1)
-        
+        #embedded = torch.transpose(embedded, 0, 1)
+        #
         return embedded
 
     def forward(self, input_seq):

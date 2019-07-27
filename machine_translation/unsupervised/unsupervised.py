@@ -29,7 +29,7 @@ from DecoderRNN import DecoderRNN
 from Data_reading import input_data
 from Pretrained_embedding import pre_embedding
 import Train
-
+from textCNN import textCNN
 
 device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -82,27 +82,27 @@ src_train, src_train_lens, tgt_train, tgt_train_lens, src_val, src_val_lens, tgt
 # In[9]:
 
 
-test = np.arange(5000)
-formal_train_tensors = torch.LongTensor(src_train[test]).to(device)
-formal_train_lens_tensors = torch.LongTensor(src_train_lens[test]).to(device)
-informal_train_tensors = torch.LongTensor(tgt_train[test]).to(device)
-informal_train_lens_tensors = torch.LongTensor(tgt_train_lens[test]).to(device)
+# test = np.arange(2000)
+# formal_train_tensors = torch.LongTensor(src_train[test]).to(device)
+# formal_train_lens_tensors = torch.LongTensor(src_train_lens[test]).to(device)
+# informal_train_tensors = torch.LongTensor(tgt_train[test]).to(device)
+# informal_train_lens_tensors = torch.LongTensor(tgt_train_lens[test]).to(device)
 
-test_1= np.arange(1000)
-formal_val_tensors = torch.LongTensor(src_val[test_1]).to(device)
-formal_val_lens_tensors = torch.LongTensor(src_val_lens[test_1]).to(device)
-informal_val_tensors = torch.LongTensor(tgt_val[test_1]).to(device)
-informal_val_lens_tensors = torch.LongTensor(tgt_val_lens[test_1]).to(device)
+# test_1= np.arange(1000)
+# formal_val_tensors = torch.LongTensor(src_val[test_1]).to(device)
+# formal_val_lens_tensors = torch.LongTensor(src_val_lens[test_1]).to(device)
+# informal_val_tensors = torch.LongTensor(tgt_val[test_1]).to(device)
+# informal_val_lens_tensors = torch.LongTensor(tgt_val_lens[test_1]).to(device)
 
-# formal_train_tensors = torch.LongTensor(src_train).to(device)
-# formal_train_lens_tensors = torch.LongTensor(src_train_lens).to(device)
-# informal_train_tensors = torch.LongTensor(tgt_train).to(device)
-# informal_train_lens_tensors = torch.LongTensor(tgt_train_lens).to(device)
+formal_train_tensors = torch.LongTensor(src_train).to(device)
+formal_train_lens_tensors = torch.LongTensor(src_train_lens).to(device)
+informal_train_tensors = torch.LongTensor(tgt_train).to(device)
+informal_train_lens_tensors = torch.LongTensor(tgt_train_lens).to(device)
 
-# formal_val_tensors = torch.LongTensor(src_val).to(device)
-# formal_val_lens_tensors = torch.LongTensor(src_val_lens).to(device)
-# informal_val_tensors = torch.LongTensor(tgt_val).to(device)
-# informal_val_lens_tensors = torch.LongTensor(tgt_val_lens).to(device)
+formal_val_tensors = torch.LongTensor(src_val).to(device)
+formal_val_lens_tensors = torch.LongTensor(src_val_lens).to(device)
+informal_val_tensors = torch.LongTensor(tgt_val).to(device)
+informal_val_lens_tensors = torch.LongTensor(tgt_val_lens).to(device)
 
 
 # In[10]:
@@ -128,19 +128,28 @@ encoder = EncoderRNN(embedding=embedding, vocab_size=vocab_size, embedding_dim=e
 decoder = DecoderRNN(embedding=embedding, attn_model=attn, vocab_size=vocab_size, embedding_dim=embedding_dim, 
                      hidden_dim=hidden_dim, device=device , num_layer=num_layer, dropout=dropout).to(device)
 
+textCNN = textCNN(seq_length=MAX_LEN, embedding_size=embedding_dim, 
+                  num_labels=2, embedding=embedding, filter_sizes=[3, 4, 5], drop_out_rate=0.5, num_feature_maps=500).to(device)
+
 encoder_optimizer = optim.Adam(encoder.parameters(),lr=learning_rate)
 
 decoder_optimizer = optim.Adam(decoder.parameters(),lr=learning_rate)
 
+cnn_optimizer = optim.Adam(textCNN.parameters(),lr=learning_rate)
 
-# In[ ]:
 
 
-output_seq, plot_train_loss, plot_val_loss = Train.train(formal_train_tensors, formal_train_lens_tensors, informal_train_tensors, informal_train_lens_tensors,
+
+
+
+# In[11]:
+
+
+output_seq, plot_train_rec_loss,plot_val_rec_loss,plot_train_cnn_loss,plot_val_cnn_loss,plot_train_cnn_acc,plot_val_cnn_acc = Train.train(formal_train_tensors, formal_train_lens_tensors, informal_train_tensors, informal_train_lens_tensors,
             formal_val_tensors, formal_val_lens_tensors, informal_val_tensors, informal_val_lens_tensors,
             style_1=style_1, style_2=style_2,
-            encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, 
-            epoches=3, batch_size=batch_size, print_every=1, plot_every=1, sp_user=sp_user)
+            encoder=encoder, decoder=decoder, encoder_optimizer=encoder_optimizer, decoder_optimizer=decoder_optimizer, cnn_optimizer=cnn_optimizer,
+            epoches=50, batch_size=batch_size, print_every=1, plot_every=1, sp_user=sp_user, textCNN=textCNN, device=device)
 
 
 # In[ ]:
@@ -159,18 +168,10 @@ output_seq, plot_train_loss, plot_val_loss = Train.train(formal_train_tensors, f
 # In[ ]:
 
 
-with open('./saved_models/embedding', 'w') as f:
-    print(embedding.weight)
+#print(encoder.embedding.weight)
 
 
-# In[ ]:
-
-
-get_ipython().system('jupyter nbconvert --to script unsupervised.ipynb')
-
-
-# In[ ]:
-
+# In[13]:
 
 
 
@@ -179,6 +180,24 @@ get_ipython().system('jupyter nbconvert --to script unsupervised.ipynb')
 
 
 
+
+
+# In[22]:
+
+
+#a = torch.tensor([0,0,0,0,0,1,1,1])
+
+
+# In[26]:
+
+
+#torch.sum(a == 1)
+
+
+# In[27]:
+
+
+#a.size()
 
 
 # In[ ]:
