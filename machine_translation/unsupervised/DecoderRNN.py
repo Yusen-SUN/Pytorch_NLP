@@ -24,22 +24,19 @@ class DecoderRNN(nn.Module):
         
         self.embedding_dropout = nn.Dropout(dropout) 
         
-        self.gru = nn.GRU(input_size=(self.hidden_dim+embedding_dim), hidden_size=self.hidden_dim, num_layers=self.num_layer, dropout=dropout)
+        self.gru = nn.GRU(input_size=(hidden_dim+embedding_dim), hidden_size=hidden_dim, num_layers=num_layer, dropout=dropout)
                 
-        self.out = nn.Linear(self.hidden_dim, vocab_size)
+        self.out = nn.Linear(hidden_dim, vocab_size)
         
-        self.attn = Attn('general', self.hidden_dim)
+        self.attn = Attn('general', hidden_dim)
         
     def forward_word(self, input_word, h, encoder_outputs):
-        
         # input_word (1, batch)
         # h (num_layer, batch, hidden_size)
         # encoder_outputs (seq, batch, hidden_dim)
 
         # output (batch, output_vocab_size)
         # attn_weights (batch, 1, seq)
-        
-        input_word = input_word.type(torch.long)
         
         #embedded (1, batch, embedd_dim)
         embedded = self.embedding(input_word)

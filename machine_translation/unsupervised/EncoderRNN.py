@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class EncoderRNN(nn.Module):
-    def __init__(self, vocab_size, embedding_dim, hidden_dim, device, num_layer=2, dropout=0.5, bidirectional=True):
+    def __init__(self, vocab_size, embedding_dim, hidden_dim, device, num_layer=3, dropout=0.5, bidirectional=True):
         #, same_embedding=True, pretrained_embedding=None):
         
         super(EncoderRNN, self).__init__()
@@ -27,9 +27,7 @@ class EncoderRNN(nn.Module):
         self.hidden_dim = hidden_dim
                 
         self.num_layer = num_layer
-        
-        self.dropout = dropout
-        
+                
         self.device = device
 
         self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedding_dim, padding_idx=0)
@@ -121,15 +119,12 @@ class EncoderRNN(nn.Module):
         # input_seq (batch, seq)
         # input_lengths (batch)
         # style: 1
-
-        batch_size = input_seq.size()[0]
         
         # embedded (seq+1, batch, embedding_dim)
         # input_lengths (batch)
         embedded, input_lengths = self.processing_input(input_seq, input_lengths, style)
          
         packed = nn.utils.rnn.pack_padded_sequence(embedded, input_lengths)
-        
         
         #h_1: (1 * num_directions, batch, hidden_dim_1)
         outputs, h_1 = self.gru_1(packed)
@@ -139,7 +134,6 @@ class EncoderRNN(nn.Module):
             h_1 = torch.cat([h_1[0,:,:], h_1[1,:,:]], dim=-1).unsqueeze(0)
         
         if self.num_layer > 1:
-
             outputs, lens = nn.utils.rnn.pad_packed_sequence(outputs)
             outputs = self.dropout(outputs)
             packed = nn.utils.rnn.pack_padded_sequence(outputs, lens)
