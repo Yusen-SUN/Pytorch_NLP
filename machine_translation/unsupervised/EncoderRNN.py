@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class EncoderRNN(nn.Module):
-    def __init__(self, vocab_size, embedding_dim, hidden_dim, device, num_layer=3, dropout=0.5, bidirectional=True):
+    def __init__(self, embedding, vocab_size, embedding_dim, hidden_dim, device, num_layer=3, dropout=0.5, bidirectional=True):
         #, same_embedding=True, pretrained_embedding=None):
         
         super(EncoderRNN, self).__init__()
@@ -30,7 +30,7 @@ class EncoderRNN(nn.Module):
                 
         self.device = device
 
-        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedding_dim, padding_idx=0)
+        self.embedding = embedding
         
         self.dropout = nn.Dropout(dropout)
         

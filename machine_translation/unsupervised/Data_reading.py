@@ -38,7 +38,7 @@ def input_data(sp_user, MAX):
     formal_train = read_sentences('formal-train')
     informal_train = read_sentences('informal-train')
     formal_val = read_sentences('formal-val')
-    informal_val = read_sentences('formal-val')
+    informal_val = read_sentences('informal-val')
         
     src_train = []
     src_train_lens = []
@@ -55,17 +55,17 @@ def input_data(sp_user, MAX):
             continue
         src_train.append(seq_1)
         
-        if len(seq_1)<50:
+        if len(seq_1)<MAX:
             src_train_lens.append(len(seq_1))
         else:
-            src_train_lens.append(50)
-            
+            src_train_lens.append(MAX)
+    
         tgt_train.append(seq_2)
         
-        if len(seq_2)<50:
+        if len(seq_2)<MAX:
             tgt_train_lens.append(len(seq_2))
         else:
-             tgt_train_lens.append(50)
+             tgt_train_lens.append(MAX)
                                    
     src_train = fill_padding(src_train, MAX, sp_user.pad_id())
     src_train_lens = np.asarray(src_train_lens)
@@ -93,16 +93,16 @@ def input_data(sp_user, MAX):
             continue
             
         src_val.append(seq_1)
-        if len(seq_1)<50:
+        if len(seq_1)<MAX:
             src_val_lens.append(len(seq_1))
         else:
-            src_val_lens.append(50)                       
+            src_val_lens.append(MAX)                       
                                    
         tgt_val.append(seq_2)
-        if len(seq_2)<50:
+        if len(seq_2)<MAX:
             tgt_val_lens.append(len(seq_2))
         else:
-            tgt_val_lens.append(50)                       
+            tgt_val_lens.append(MAX)                       
 
     src_val = fill_padding(src_val, MAX, sp_user.pad_id())
     src_val_lens = np.asarray(src_val_lens)

@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from Attention import Attn
+import numpy as np
 
 class DecoderRNN(nn.Module):
        
-    def __init__(self, attn_model, vocab_size, embedding_dim, hidden_dim, device, num_layer, dropout):#, embedding=None):
+    def __init__(self, embedding, attn_model, vocab_size, embedding_dim, hidden_dim, device, num_layer, dropout):#, embedding=None):
         super(DecoderRNN, self).__init__()
         
         self.hidden_dim = hidden_dim
@@ -16,7 +17,7 @@ class DecoderRNN(nn.Module):
         
         self.output_vocab_size = vocab_size
         
-        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=embedding_dim, padding_idx=0)
+        self.embedding = embedding
         
         self.device = device
                 
@@ -37,7 +38,7 @@ class DecoderRNN(nn.Module):
 
         # output (batch, output_vocab_size)
         # attn_weights (batch, 1, seq)
-        
+        input_word = input_word.type(torch.long)
         #embedded (1, batch, embedd_dim)
         embedded = self.embedding(input_word)
         
@@ -78,11 +79,13 @@ class DecoderRNN(nn.Module):
         # output (batch, output_vocab_size)
         output = self.out(output)
         
+        output = F.log_softmax(output, dim=-1)
+        
         # output (batch, output_vocab_size)
         # h (num_layer, batch, hidden_dim)
         return output, h
     
-    def forward(self, h, encoder_outputs, style):
+    def forward(self, h, encoder_outputs, style, target_tensors, teacher_forcing_ratio):
         
         #h: num_layer, b, hidden
         #encoder_outputs: seq, b, hidden
@@ -92,26 +95,30 @@ class DecoderRNN(nn.Module):
         # decoder_input: b
         decoder_input = torch.ones(batch_size).to(self.device)*style
         
+        target_tensors = target_tensors.t() if type(target_tensors)!=None else None
+        
         outputs = []
         output_seq = []
         #output_embedding = []
             
         for i in range(0, target_length-1):
-
-            # decoder_input: 1, b
-            decoder_input = decoder_input.unsqueeze(0)
+            
+            use_teacher_forcing = True if np.random.random() < teacher_forcing_ratio else False
+            
+            if use_teacher_forcing:
+                decoder_input = target_tensors[i,:].unsqueeze(0)
+                
+                
+            else:    
+                # decoder_input: 1, b
+                decoder_input = decoder_input.unsqueeze(0)
 
             # decoder_output: b, output_vocab_size
             # h: num_layer, batch, hidden
             decoder_output, h = self.forward_word(decoder_input, h, encoder_outputs)
             
-            # output (batch, output_vocab_size)
-            #decoder_output_prob = F.softmax(decoder_output, dim=-1)
             # output (1, batch, embeded_dim)
             #decoder_embedding =  torch.bmm(decoder_output_prob, self.embedding).unsqueeze(0)
-            
-            # decoder_output: b, output_vocab_size
-            decoder_output = F.log_softmax(decoder_output, dim=-1)
             
             # topi, topv: b, 1
             topv, topi = decoder_output.topk(1)
